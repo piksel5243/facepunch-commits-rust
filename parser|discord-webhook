@@ -1,0 +1,79 @@
+import requests #need to install
+from bs4 import BeautifulSoup #need to install
+import threading #need to install
+import time
+from discord_webhook import DiscordWebhook, DiscordEmbed #need to install
+from time import sleep
+
+URL = 'https://commits.facepunch.com/r/rust_reboot'
+HEADERS = {'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36','accept':'*/*'}
+HOST = 'https://commits.facepunch.com'
+last_update = []
+sign = '█'
+
+#gettingHtml
+def get_html(url, params=None):
+    r = requests.get(url, headers=HEADERS, params=params)
+    return r
+#access to post
+def save():
+    if sign in f'{new["Message"]}':
+        return
+    update = (
+        f'Author - {new["Author"]}\nUpdate - {new["Message"]}\n{new["Repository"]}\n{new["link"]}'
+    )
+    if update not in last_update:
+        last_update.clear()
+        last_update.append(update)
+        return True
+#get content from html
+def get_content(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    item = soup.find_all('div', class_="commit columns")[0]
+    news = []
+    Message=item.find('div', class_='commits-message').get_text(strip=True)
+    Repository=item.find('div', class_='repository').get_text(strip=True)
+    Rep = item.find('div', class_='repository')
+    RepItem = Rep.find('span', class_='changeset')
+    avatar = item.find('div', class_='avatar is-pulled-left is-hidden-tablet')
+    news.append({
+        'Author':item.find('div', class_='author').get_text(strip=True),
+        'link':HOST + RepItem.find('a').get('href'),
+        'Repository':Repository,
+        'Message':Message,
+        'Avatar':avatar.find('img').get('src'),
+    })
+    global new
+    for new in news:
+        pass
+#start of parse
+def parse():
+    html = get_html(URL)
+    if html.status_code == 200:
+        news=get_content(html.text)
+    else:
+        print('Error')
+parse()        
+#Webhook
+webhookurl = '' #your discord channel webhook
+def webhookupdate():
+    threading.Timer(60.0, webhookupdate).start() #checking for commits every minute
+    parse()
+    if save() == True:
+        if sign in f'{new["Message"]}':
+            return
+        webhook = DiscordWebhook(url=webhookurl,
+                                 content=f'{new["link"]}')
+        embed = DiscordEmbed(title='Update',
+                             description=f'{new["Message"]}',
+                             url=f'{new["link"]}',
+                             color='0xFF0000')
+
+        #set author of embed
+        embed.set_author(name=f'{new["Author"]}',
+                         url=f'{new["link"]}',
+                         icon_url=f'{new["Avatar"]}')
+        webhook.add_embed(embed)
+
+        response = webhook.execute()
+webhookupdate()
